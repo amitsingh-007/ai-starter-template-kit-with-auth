@@ -24,13 +24,14 @@ export async function POST(req: Request) {
     })
     .returning();
 
-  const result = await streamText({
-    model: openai("gpt-4o"),
+  const result = streamText({
+    model: openai("gpt-4.1-nano"),
     system: "You are a helpful assistant.",
     messages,
   });
 
-  const [stream1, stream2] = result.textStream.tee();
+  const response = result.toDataStreamResponse();
+  const [stream1, stream2] = response.body!.tee();
 
   // Asynchronously save the full AI response to the database after the stream completes
   (async () => {
@@ -39,7 +40,20 @@ export async function POST(req: Request) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      aiResponse += value;
+      const decodedChunk = new TextDecoder().decode(value);
+      const lines = decodedChunk.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('0:')) {
+          try {
+            const parsedContent = JSON.parse(line.substring(2));
+            aiResponse += parsedContent;
+          } catch (e) {
+            console.error("Error parsing AI response chunk for DB save:", e, line);
+            // Fallback to just appending the raw content if parsing fails
+            aiResponse += line.substring(2);
+          }
+        }
+      }
     }
 
     if (newChatSession?.[0]?.id) {
@@ -55,9 +69,11 @@ export async function POST(req: Request) {
     // Handle error, e.g., log it or send a notification
   });
 
-  return new Response(stream1, {
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
-  });
+  const responseInit: ResponseInit = {
+    headers: response.headers,
+    status: response.status,
+    statusText: response.statusText,
+  };
+
+  return new Response(stream1, responseInit);
 }
