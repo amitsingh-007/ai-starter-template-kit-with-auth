@@ -24,14 +24,13 @@ export async function POST(req: Request) {
     })
     .returning();
 
-  const result = streamText({
+  const result = await streamText({
     model: openai("gpt-4o"),
     system: "You are a helpful assistant.",
     messages,
   });
 
-  const response = result.toDataStreamResponse();
-  const [stream1, stream2] = response.body!.tee();
+  const [stream1, stream2] = result.textStream.tee();
 
   // Asynchronously save the full AI response to the database after the stream completes
   (async () => {
@@ -40,7 +39,7 @@ export async function POST(req: Request) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      aiResponse += new TextDecoder().decode(value);
+      aiResponse += value;
     }
 
     if (newChatSession?.[0]?.id) {
@@ -56,5 +55,9 @@ export async function POST(req: Request) {
     // Handle error, e.g., log it or send a notification
   });
 
-  return new Response(stream1, response);
+  return new Response(stream1, {
+    headers: {
+      'Content-Type': 'text/plain; charset=utf-8',
+    },
+  });
 }
