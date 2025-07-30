@@ -1,19 +1,14 @@
-import { OpenAI } from '@ai-sdk/openai';
-import { StreamingTextResponse, streamText } from 'ai';
- 
-export const runtime = 'edge';
- 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
- 
+import { streamText } from 'ai';
+import { openai } from '@ai-sdk/openai';
+
 export async function POST(req: Request) {
   const { messages } = await req.json();
- 
-  const result = await streamText({
-    model: openai.chat('gpt-4.1-nano'),
+
+  const result = streamText({
+    model: openai('gpt-4.1-nano'),
+    system: 'You are a helpful assistant.',
     messages,
   });
- 
-  return new StreamingTextResponse(result.toAIStream());
+
+  return result.toDataStreamResponse();
 }
