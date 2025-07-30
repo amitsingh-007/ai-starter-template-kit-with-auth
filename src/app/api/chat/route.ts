@@ -1,4 +1,4 @@
-import { OpenAI } from 'openai';
+import { OpenAI } from '@ai-sdk/openai';
 import { StreamingTextResponse, streamText } from 'ai';
  
 export const runtime = 'edge';
